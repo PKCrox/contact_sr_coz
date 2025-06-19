@@ -1,0 +1,32 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import argparse
+import os
+
+def visualize(npz_path):
+    data = np.load(npz_path)
+    h = data['height']
+    p = data['pressure']
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8,4))
+    im1 = ax1.imshow(h, cmap='viridis')
+    ax1.set_title('Height Map')
+    plt.colorbar(im1, ax=ax1, fraction=0.046)
+
+    im2 = ax2.imshow(p, cmap='inferno')
+    ax2.set_title('Pressure Map')
+    plt.colorbar(im2, ax=ax2, fraction=0.046)
+
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Visualize .npz height/pressure maps'
+    )
+    parser.add_argument('npz_file', type=str, help='Path to .npz file')
+    args = parser.parse_args()
+
+    if not os.path.isfile(args.npz_file):
+        raise FileNotFoundError(f"No such file: {args.npz_file}")
+    visualize(args.npz_file)
