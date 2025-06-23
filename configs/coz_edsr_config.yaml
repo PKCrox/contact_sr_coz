@@ -1,0 +1,50 @@
+# Configuration for CoZ-EDSR Training
+
+model:
+  name: "CoZ_EDSR"
+  in_channels: 2
+  channels: 64
+  stages: 3
+  prompt_channels: 64
+  use_force_correction: true  # Toggle the new ForceCorrectionLayer
+
+training:
+  epochs: 100
+  batch_size: 16
+  data_dir: "data/splits"
+  ckpt_dir: "experiments/coz_edsr/checkpoints"
+  resume_from_checkpoint: null # or path to a .pth file
+
+optimizer:
+  type: "Adam"
+  lr: 0.0001
+  betas: [0.9, 0.999]
+  weight_decay: 0
+
+scheduler:
+  type: "CosineAnnealingLR" # e.g., "StepLR", "CosineAnnealingLR"
+  params:
+    StepLR:
+      step_size: 20
+      gamma: 0.5
+    CosineAnnealingLR:
+      T_max: 100 # Typically equal to the number of epochs
+      eta_min: 0.000001
+
+loss_weights:
+  reconstruction: 1.0       # Anchor, should be 1.0
+  physics: 1.0              # Global weight for physics, good default
+  
+  # --- Individual Physics Loss Weights ---
+  # Strategy: Balance the magnitude of each loss against the reconstruction loss.
+  force: 1.0e-5             # CRITICAL: Use a small value because this loss is on the SUM, not the MEAN.
+  area: 1.0                 # Strong weight for getting the contact area right. Its scale is comparable to L1.
+  divergence: 0.1             # Good default for a smoothness regularizer.
+  
+  adhesion: 0.0               # Initially off, turned on by schedule.
+  adhesion_schedule: "2,0.01,20,0.1,50,1.0" # epoch,value pairs
+  
+misc:
+  num_workers: 4
+  device: "auto" # auto-detects mps/cuda, falls back to cpu
+  gradient_clip_val: 1.0 # Clip gradient norm to this value 

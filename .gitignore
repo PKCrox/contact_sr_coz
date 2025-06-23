@@ -1,7 +1,28 @@
-data/*
-!data/.gitkeep
-logs/*
-!logs/.gitkeep
-experiments/*
-!experiments/.gitkeep
+# General
 .DS_Store
+*.pyc
+__pycache__/
+.vscode/
+
+# Python Virtual Environment
+venv/
+/venv/
+
+# Large Data & Model Files
+data/
+ckpt_all/
+experiments/
+logs/
+*.pth
+*.pt
+*.npz
+
+# Generated files
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# IDE specific
+.idea/
+*.swp

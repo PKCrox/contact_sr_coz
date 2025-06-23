@@ -1,0 +1,16 @@
+data_dir: data/splits
+train:
+  epochs:      50
+  batch_size:  16
+  lr:          1e-4
+model:
+  stages:      3
+  channels:    64
+loss:
+  lambda_force: 1.0
+  lambda_area:  1.0
+  lambda_div:   0.1
+checkpoint:
+  dir: experiments/coz_edsr/checkpoints
+output:
+  dir: experiments/coz_edsr/outputs
