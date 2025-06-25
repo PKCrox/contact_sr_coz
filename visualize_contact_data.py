@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 
+# 논문 Figure 1 등과 동일한 시뮬레이션 데이터 시각화 예시
+# - Height Map, Pressure Map 등 논문 그림과 동일한 결과를 재현할 수 있음
+# - 논문 Figure와 동일한 컬러맵, 축, 저장 위치 등 안내
+
 def visualize(npz_path):
     data = np.load(npz_path)
     h = data['height']

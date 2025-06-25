@@ -64,12 +64,15 @@ def calculate_physics_metrics(sr_map, hr_map):
     hr_p = hr_map[1]
 
     # Force Conservation Error (|mean(P_sr) - mean(P_hr)|)
+    # 논문 4.1 Force Error(총합 입력 분포의 오차)
     force_err = np.abs(np.mean(sr_p) - np.mean(hr_p))
 
     # Contact Area Error (|mean(A_sr) - mean(A_hr)|)
+    # 논문 4.1 Area Error(실제 접촉 영역 예측 오차)
     area_err = np.abs(np.mean(sr_p > 0) - np.mean(hr_p > 0))
 
     # Divergence Magnitude (mean(|∇·P_sr|))
+    # 논문 4.1 Divergence(압력장의 발산)
     sr_p_tensor = torch.from_numpy(sr_p).float().unsqueeze(0).unsqueeze(0)
     divergence = get_divergence(sr_p_tensor).squeeze(0).squeeze(0).numpy()
     div_mag = np.mean(np.abs(divergence))
@@ -158,7 +161,10 @@ def calculate_all_metrics(sr_map, hr_map):
     h_hr_norm = (h_hr - min_h) / (max_h - min_h + 1e-8)
     h_sr_norm = (h_sr - min_h) / (max_h - min_h + 1e-8)
     
+    # 논문 4.1 PSNR(원본과 복원 결과의 픽셀 단위 오차)
     psnr = peak_signal_noise_ratio(h_hr_norm, h_sr_norm, data_range=1.0)
+
+    # 논문 4.1 SSIM(구조적 유사성)
     ssim = structural_similarity(h_hr_norm, h_sr_norm, data_range=1.0)
     
     phys_metrics = calculate_physics_metrics(sr_map, hr_map)

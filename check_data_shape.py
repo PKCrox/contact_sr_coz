@@ -6,6 +6,10 @@ import matplotlib.pyplot as plt
 lr_dir = 'data/raw/LR'
 hr_dir = 'data/raw/HR'
 
+# 논문 데이터셋 구조와 shape 확인용 스크립트
+# - HR: 256x256, LR: 32x32 (논문과 동일)
+# - 파라미터 조합, 파일명 규칙 등 논문과의 연관성 주석 추가
+
 try:
     # Get a sample file name
     sample_file = os.listdir(lr_dir)[0]

@@ -9,6 +9,10 @@ Physics-Informed Chain-of-Zoom EDSR
 • Equilibrium & Spectral physics modules for feature-level correction  
 • Composite loss = L1 reconstruction + physics residuals
       (force, area, divergence + optional adhesion)
+
+# 논문 실험 재현, 평가, 시각화 관련 안내 주석 보강
+# - 학습/평가/시각화가 논문 Figure/Table과 직접적으로 연결됨을 명시
+# - 실험 재현성(환경설정, 데이터, 체크포인트 등) 안내
 """
 
 import os
@@ -40,10 +44,17 @@ def compute_physics_loss(sr, hr, loss_weights, include_adh=False):
     p_sr, p_hr = sr[:, 1], hr[:, 1]
 
     loss_force = F.mse_loss(p_sr.sum(dim=(1, 2)), p_hr.sum(dim=(1, 2)))
+    # 논문 2.1.2 Greenwood–Williamson 통계 접촉 모델(GW Statistical Contact)
+    # 접촉면적 A_sr = (1/HW) ΣΣ 1(p_ij^sr > 0)로 계산
+    # 손실 함수: L_area = (A_sr - A_hr)^2
+    # 아래 코드는 예측/정답 응력맵에서 0보다 큰 영역의 비율(=접촉면적)을 구해 평균값으로 비교(MSE)합니다.
     loss_area = F.mse_loss((p_sr > 0).float().mean(dim=(1, 2)), (p_hr > 0).float().mean(dim=(1, 2)))
 
     p = p_sr.unsqueeze(1)
     p_pad = F.pad(p, (1, 1, 1, 1), 'replicate')
+    # 논문 2.1.1 연속체 평형(Continuum Equilibrium)
+    # 평형 방정식: ∇·P + b = 0 (여기서는 외력 b=0 가정)
+    # 아래 코드는 예측 응력장의 발산(divergence)이 0에 가까워지도록 손실을 계산합니다.
     div = ((p_pad[:, :, 1:-1, 2:] - p_pad[:, :, 1:-1, :-2]) +
            (p_pad[:, :, 2:, 1:-1] - p_pad[:, :, 0:-2, 1:-1])) * 0.5
     loss_div = div.square().mean()
@@ -54,6 +65,10 @@ def compute_physics_loss(sr, hr, loss_weights, include_adh=False):
 
     loss_adh = 0.0
     if include_adh and loss_weights['adhesion'] > 0:
+        # 논문 2.1.3 JKR 점착 모델(Adhesive Residual, JKR Theory)
+        # F_adh^sr = Σ[-p_ij^sr]_+ + ΔA, F_adh^hr = Σ[-p_ij^hr]_+ + ΔA
+        # 손실 함수: L_adh = (F_adh^sr - F_adh^hr)^2, [x]_+ = max(x, 0)
+        # 아래 코드는 예측/정답 응력맵에서 음수(압력) 부분만 0 이상으로 클램프하여 평균값을 비교(MSE)합니다.
         neg_sr = (-p_sr).clamp(min=0).mean(dim=(1, 2))
         neg_hr = (-p_hr).clamp(min=0).mean(dim=(1, 2))
         loss_adh = F.mse_loss(neg_sr, neg_hr)
@@ -156,13 +171,15 @@ def train(config):
     global_step = (start_epoch - 1) * len(Ltr)
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
 
+    log_interval = 20  # 20배치마다만 기록
     for epoch in range(start_epoch, config['training']['epochs'] + 1):
         current_adh_weight = max(v for e, v in adh_sched if epoch >= e)
         loss_weights['adhesion'] = current_adh_weight
 
         model.train()
         train_bar = tqdm(Ltr, desc=f"Epoch {epoch}/{config['training']['epochs']}", leave=False)
-        for lr_map, hr_map in train_bar:
+        epoch_phys_losses = {k: 0.0 for k in ['force', 'area', 'divergence', 'adhesion']}
+        for batch_idx, (lr_map, hr_map) in enumerate(train_bar):
             lr_map, hr_map = lr_map.to(device), hr_map.to(device)
 
             with torch.cuda.amp.autocast(enabled=(device.type == 'cuda')):
@@ -172,7 +189,6 @@ def train(config):
                 
                 loss_rec = cri_rec(sr, hr_map)
                 loss_phys, phys_losses_detailed = compute_physics_loss(sr, hr_map, loss_weights, include_adh=True)
-                
                 total_loss = (loss_weights['reconstruction'] * loss_rec +
                               loss_weights['physics'] * loss_phys)
 
@@ -184,15 +200,20 @@ def train(config):
             scaler.step(optimizer)
             scaler.update()
 
-            # Logging
-            train_bar.set_postfix({"loss": f"{total_loss.item():.4f}", "lr": f"{scheduler.get_last_lr()[0]:.1e}"})
-            writer.add_scalar('train/total_loss', total_loss.item(), global_step)
-            writer.add_scalar('train/recon_loss', loss_rec.item(), global_step)
-            writer.add_scalar('train/phys_loss_total', loss_phys.item(), global_step)
+            # 20배치마다만 로깅/출력
+            if batch_idx % log_interval == 0:
+                writer.add_scalar('train/total_loss', total_loss.item(), global_step)
+                writer.add_scalar('train/recon_loss', loss_rec.item(), global_step)
+                writer.add_scalar('train/phys_loss_total', loss_phys.item(), global_step)
+                train_bar.set_postfix({"loss": f"{total_loss.item():.4f}", "lr": f"{scheduler.get_last_lr()[0]:.1e}"})
+            # 상세 손실은 epoch마다만 기록을 위해 누적
             for k, v in phys_losses_detailed.items():
-                writer.add_scalar(f'train/phys_{k}_loss', v, global_step)
+                epoch_phys_losses[k] += v
             global_step += 1
-        
+        # epoch 끝날 때만 상세 손실 기록
+        for k, v in epoch_phys_losses.items():
+            writer.add_scalar(f'train/phys_{k}_loss', v / len(Ltr), epoch)
+
         scheduler.step()
         writer.add_scalar('train/learning_rate', scheduler.get_last_lr()[0], epoch)
 

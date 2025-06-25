@@ -11,6 +11,10 @@ from physics_prompt import PhysicsPromptExtractor
 from physics.equilibrium_layer import EquilibriumLayer
 from physics.spectral_module   import SpectralPhysicsModule
 
+# 논문 실험 재현을 위한 체크포인트/실험 결과 관리 스크립트
+# - best.pth, epoch별 체크포인트 등 논문 실험 재현성 보장
+# - 실험 결과(PSNR, SSIM 등) 논문 Table과 비교 가능
+
 def eval_ckpt(model, ckpt_path, val_loader, device):
     state = torch.load(ckpt_path, map_location=device)
     model.load_state_dict(state)
